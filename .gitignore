@@ -1,0 +1,22 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vinxi
+frontend/.output
+
+# Backend
+backend/uploads/
+backend/.env
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# OS
+.DS_Store
+*.local
+*.log*
