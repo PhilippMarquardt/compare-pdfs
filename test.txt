@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Dict, List, Optional
 
 import polars as pl
@@ -71,6 +73,27 @@ def calculate_single_lookthrough(
         if position_df.collect_schema()[c] in (pl.Float32, pl.Float64)
     ])
 
+    # === Step 2c: Normalize additional_attributes from holdings to other containers ===
+    # Production dict output only has weight columns per position.  The old PE's
+    # additional_attributes are therefore identical across containers (typically all 0 / empty).
+    # Raw DF positions carry ALL original columns which may differ per container
+    # (e.g. sub_portfolio_id=10 for holdings vs 0 for selected).  To match the old PE,
+    # copy each holdings row's additional_attributes to the corresponding selected /
+    # contractual rows so the final group_by merges them correctly.
+    if additional_attributes:
+        holdings_attrs = (
+            position_df
+            .filter(pl.col("container").cast(pl.Utf8) == "holding")
+            .select(["instrument_id"] + additional_attributes)
+            .group_by("instrument_id")
+            .first()
+        )
+        position_df = (
+            position_df
+            .drop(additional_attributes)
+            .join(holdings_attrs, on="instrument_id", how="left")
+        )
+
     # === Step 3: Filter null-weight positions ===
     position_df = position_df.filter(
         ~(
@@ -115,9 +138,8 @@ def calculate_single_lookthrough(
             "sub_portfolio_id", "container",
             f"weight_{suffix}",
         ]
-        for attr in additional_attributes:
-            if attr in composite_schema_names and attr not in composite_select_cols:
-                composite_select_cols.append(attr)
+        # Do NOT include additional_attributes from composites — the parent
+        # position's (normalized) values are canonical, matching old PE behavior.
         for shares_col in ["initial_shares", "resulting_shares", "blocked_shares"]:
             if shares_col in composite_schema_names and shares_col not in composite_select_cols:
                 composite_select_cols.append(shares_col)
@@ -182,20 +204,9 @@ def calculate_single_lookthrough(
         .alias("BS"),
     ])
 
-    # === Step 7: Propagate additional_attributes from composites ===
-    if composite_df is not None:
-        joined_schema = joined_df.collect_schema().names()
-        attr_exprs = []
-        for col in additional_attributes:
-            if col + "_right" in joined_schema:
-                attr_exprs.append(
-                    pl.when(pl.col("instrument_id_right").is_not_null())
-                    .then(pl.col(col + "_right"))
-                    .otherwise(pl.col(col))
-                    .alias(col)
-                )
-        if attr_exprs:
-            joined_df = joined_df.with_columns(attr_exprs)
+    # Step 7 removed: additional_attributes stay from the parent position
+    # (normalized at Step 2c). Old PE composites don't carry additional_attributes,
+    # so the parent position's values are canonical.
 
     # === Step 8: Set parent_instrument_id ===
     joined_df = joined_df.with_columns([
