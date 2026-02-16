@@ -73,27 +73,6 @@ def calculate_single_lookthrough(
         if position_df.collect_schema()[c] in (pl.Float32, pl.Float64)
     ])
 
-    # === Step 2c: Normalize additional_attributes from holdings to other containers ===
-    # Production dict output only has weight columns per position.  The old PE's
-    # additional_attributes are therefore identical across containers (typically all 0 / empty).
-    # Raw DF positions carry ALL original columns which may differ per container
-    # (e.g. sub_portfolio_id=10 for holdings vs 0 for selected).  To match the old PE,
-    # copy each holdings row's additional_attributes to the corresponding selected /
-    # contractual rows so the final group_by merges them correctly.
-    if additional_attributes:
-        holdings_attrs = (
-            position_df
-            .filter(pl.col("container").cast(pl.Utf8) == "holding")
-            .select(["instrument_id"] + additional_attributes)
-            .group_by("instrument_id")
-            .first()
-        )
-        position_df = (
-            position_df
-            .drop(additional_attributes)
-            .join(holdings_attrs, on="instrument_id", how="left")
-        )
-
     # === Step 3: Filter null-weight positions ===
     position_df = position_df.filter(
         ~(
