@@ -1,5 +1,7 @@
 import type { GlobalPageAnalysis, JobMetadata, PageAnalysis, SectionPageAnalysisResult } from '../types/job'
 
+// Deployment note: after changing API_BASE, run `npm run build` in `frontend/`
+// and copy the built frontend folder into `compare-pdfs` before `git add/commit`.
 const API_BASE = 'http://localhost:30099'
 
 export async function createJob(
