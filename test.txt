@@ -191,3 +191,43 @@ def colleague_calculate_lookthrough(
     ])
 
     return df
+
+
+
+
+def build_perspective_dict_colleague(
+    positions_lf: pl.LazyFrame,
+    lookthroughs_lf: Optional[pl.LazyFrame],
+    perspective_configs: Dict[str, Dict[str, List[str]]],
+    record_types: List[str] = None,
+) -> Dict[str, Dict[int, Dict[str, pl.LazyFrame]]]:
+    """Build dict structure using colleague's approach: {config: {pid: {granularity: LazyFrame}}}"""
+    if record_types is None:
+        record_types = ["essential_lookthroughs", "complete_lookthroughs"]
+
+    result: Dict[str, Dict[int, Dict[str, pl.LazyFrame]]] = {}
+
+    for config, pmap in perspective_configs.items():
+        result[config] = {}
+        for pid_str in pmap:
+            pid = int(pid_str)
+            result[config][pid] = {}
+
+            result[config][pid]["no"] = colleague_calculate_lookthrough(
+                pos=positions_lf,
+                lt=lookthroughs_lf,
+                config=config,
+                pid=pid,
+                granularity="no",
+            )
+
+            for rt in record_types:
+                result[config][pid][rt] = colleague_calculate_lookthrough(
+                    pos=positions_lf,
+                    lt=lookthroughs_lf,
+                    config=config,
+                    pid=pid,
+                    granularity=rt,
+                )
+
+    return result
