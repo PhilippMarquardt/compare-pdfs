@@ -1,0 +1,60 @@
+ # ------------------------------
+  # OS / Editor
+  # ------------------------------
+  .DS_Store
+  Thumbs.db
+  .vscode/*
+  !.vscode/extensions.json
+  .idea/
+  *.swp
+  *.swo
+
+  # ------------------------------
+  # Python
+  # ------------------------------
+  __pycache__/
+  *.py[cod]
+  *.pyo
+  *.pyd
+  .venv/
+  venv/
+  .pytest_cache/
+  .mypy_cache/
+  .ruff_cache/
+
+  # ------------------------------
+  # Backend runtime / secrets
+  # ------------------------------
+  backend/.env
+  backend/.env.*
+  !backend/.env.example
+  backend/uploads/
+  backend/data/jobs.json
+  *.log
+  *.log.*
+
+  # Certs/keys anywhere in repo
+  *.pem
+  *.key
+  *.p12
+  *.pfx
+  *.crt
+  *.cer
+
+  # ------------------------------
+  # Frontend
+  # ------------------------------
+  frontend/node_modules/
+  frontend/.vinxi/
+  frontend/.output/
+  frontend/.vite/
+  frontend/.cache/
+
+  # Keep built frontend artifacts tracked
+  !frontend/dist/
+  !frontend/dist/**
+
+  # ------------------------------
+  # Local-only files
+  # ------------------------------
+  *.local

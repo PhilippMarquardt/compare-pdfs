@@ -1,0 +1,30 @@
+[
+  {
+    "job_id": "165f73101a4e",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "7d8a730e47c5",
+        "filename": "1.pdf",
+        "reference_path": "/api/jobs/165f73101a4e/files/reference/1.pdf",
+        "test_path": "/api/jobs/165f73101a4e/files/test/1.pdf",
+        "status": "pending",
+        "page_count_reference": 4,
+        "page_count_test": 4
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T15:52:10.260405",
+    "analysis_status": "done",
+    "analysis_progress": 4,
+    "analysis_total": 4,
+    "analysis_error": null,
+    "global_analysis_status": "done",
+    "global_analysis_progress": 4,
+    "global_analysis_total": 4,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  }
+]
