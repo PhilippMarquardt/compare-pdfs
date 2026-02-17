@@ -1,80 +1,49 @@
-from __future__ import annotations
+def _replace_sentinels(lf: pl.LazyFrame, exclude_int: set = None) -> pl.LazyFrame:
+    """Replace INT_NULL/FLOAT_NULL sentinels back to real nulls."""
+    if exclude_int is None:
+        exclude_int = set()
+    schema = lf.collect_schema()
+    int_exprs = [
+        pl.when(pl.col(c) == INT_NULL).then(None).otherwise(pl.col(c)).alias(c)
+        for c, dt in schema.items()
+        if dt in (pl.Int32, pl.Int64) and c not in exclude_int
+    ]
+    float_exprs = [
+        pl.when(pl.col(c) == FLOAT_NULL).then(None).otherwise(pl.col(c)).alias(c)
+        for c, dt in schema.items()
+        if dt in (pl.Float32, pl.Float64)
+    ]
+    if int_exprs or float_exprs:
+        lf = lf.with_columns(int_exprs + float_exprs)
+    return lf
 
-from typing import Dict, List, Optional
 
-import polars as pl
-import polars.selectors as cs
-import pytest
-
-from perspective_service.core.engine import PerspectiveEngine
-from perspective_service.utils.constants import INT_NULL, FLOAT_NULL
-
-
-# =============================================================================
-# Core Function: calculate_single_lookthrough
-# Matches old PositionEngine.calculate_single_lookthrough() exactly
-# =============================================================================
-
-
-def calculate_single_lookthrough(
-    positions_lf: pl.LazyFrame,
-    lookthroughs_lf: Optional[pl.LazyFrame],
-    scale_factors_lf: Optional[pl.LazyFrame],
+def colleague_calculate_lookthrough(
+    pos: pl.LazyFrame,
+    lt: Optional[pl.LazyFrame],
     config: str,
     pid: int,
     granularity: str,  # "no", "essential_lookthroughs", "complete_lookthroughs"
-    value_metadata: Optional[pl.LazyFrame] = None,
-    scale_holdings: bool = False,
-    additional_attributes: List[str] = None,
 ) -> pl.LazyFrame:
-    """
-    Replicate old PositionEngine.calculate_single_lookthrough().
+    """Colleague's approach with minimal fixes to make it work.
 
-    Key differences by granularity:
-    - "no": PI = initial_weight, PR = resulting_weight
-    - lookthrough (has underlying): PI = initial_exposure_weight_{suffix} x weight_{suffix}
-    - lookthrough (leaf, no underlying): PI = initial_exposure_weight_{suffix} alone
+    Fixes applied to original code:
+    1. by_name: only list columns that exist in the schema
+    2. LT join: use parent_instrument_id instead of composite_id
+    3. is_composite: use instrument_id_right instead of composite_id
+    4. Sentinel replacement: revert INT_NULL/FLOAT_NULL to real nulls
     """
     suffix = f"{config}_{pid}"
     fcol = f"f_{suffix}"
-    is_lookthrough_level_no = (granularity == "no")
 
-    # === Step 1: Auto-compute additional_attributes from position schema ===
-    if additional_attributes is None:
-        pos_schema_names = positions_lf.collect_schema().names()
-        standard_exclusions = {
-            'identifier', 'instrument_id', 'parent_instrument_id',
-            'initial_shares', 'resulting_shares', 'blocked_shares',
-            'initial_weight', 'resulting_weight',
-            'initial_exposure_weight', 'resulting_exposure_weight',
-            'container', 'record_type', 'weight',
-        }
-        additional_attributes = [
-            c for c in pos_schema_names
-            if c not in standard_exclusions
-            and not c.startswith("f_")
-            and f"_{suffix}" not in c
-        ]
+    # --- Fix: Replace sentinel nulls ---
+    pos = _replace_sentinels(pos, exclude_int={"instrument_id", "identifier"})
 
-    # === Step 2: Filter positions by perspective ===
-    position_df = positions_lf.filter(pl.col(fcol).is_not_null())
+    # --- Filter by perspective ---
+    pos = pos.filter(pl.col(fcol).is_not_null())
 
-    # === Step 2b: Replace sentinel null values back to actual nulls ===
-    # DataIngestion._fill_null_values fills nulls with INT_NULL/FLOAT_NULL sentinels.
-    # These must be reverted so they don't pollute group_by / additional_attributes.
-    position_df = position_df.with_columns([
-        pl.when(pl.col(c) == INT_NULL).then(None).otherwise(pl.col(c)).alias(c)
-        for c in position_df.collect_schema().names()
-        if position_df.collect_schema()[c] in (pl.Int32, pl.Int64)
-        and c not in {'instrument_id', 'identifier'}
-    ] + [
-        pl.when(pl.col(c) == FLOAT_NULL).then(None).otherwise(pl.col(c)).alias(c)
-        for c in position_df.collect_schema().names()
-        if position_df.collect_schema()[c] in (pl.Float32, pl.Float64)
-    ])
-
-    # === Step 3: Filter null-weight positions ===
-    position_df = position_df.filter(
+    # --- Filter null-weight positions ---
+    pos = pos.filter(
         ~(
             ((pl.col("container").cast(pl.Utf8) == "holding")
              & pl.col(f"initial_weight_{suffix}").is_null()
@@ -86,323 +55,139 @@ def calculate_single_lookthrough(
         )
     )
 
-    # === Step 4: Get composites (lookthroughs) for this granularity ===
-    if granularity == "no" or lookthroughs_lf is None:
-        composite_df = None
-    else:
-        composite_df = (
-            lookthroughs_lf
-            .filter(pl.col(fcol).is_not_null())
-            .filter(pl.col("record_type").cast(pl.Utf8) == granularity)
-        )
-        # Replace sentinels in lookthroughs too
-        composite_df = composite_df.with_columns([
-            pl.when(pl.col(c) == INT_NULL).then(None).otherwise(pl.col(c)).alias(c)
-            for c in composite_df.collect_schema().names()
-            if composite_df.collect_schema()[c] in (pl.Int32, pl.Int64)
-            and c not in {'instrument_id', 'parent_instrument_id', 'identifier'}
-        ] + [
-            pl.when(pl.col(c) == FLOAT_NULL).then(None).otherwise(pl.col(c)).alias(c)
-            for c in composite_df.collect_schema().names()
-            if composite_df.collect_schema()[c] in (pl.Float32, pl.Float64)
-        ])
+    # --- Original selector logic (fixed: only columns that exist) ---
+    pos_schema = pos.collect_schema().names()
 
-    # === Step 5: Join positions with composites ===
-    composite_schema_names = []
-    if composite_df is not None:
-        composite_schema_names = composite_df.collect_schema().names()
-        # Select columns needed for join + weight + any additional attributes present
-        composite_select_cols = [
-            "instrument_id", "parent_instrument_id",
-            "sub_portfolio_id", "container",
-            f"weight_{suffix}",
-        ]
-        # Do NOT include additional_attributes from composites — the parent
-        # position's (normalized) values are canonical, matching old PE behavior.
-        for shares_col in ["initial_shares", "resulting_shares", "blocked_shares"]:
-            if shares_col in composite_schema_names and shares_col not in composite_select_cols:
-                composite_select_cols.append(shares_col)
+    container = pl.selectors.by_name('container')
 
-        joined_df = position_df.join(
-            composite_df.select(composite_select_cols),
-            left_on=["instrument_id", "container", "sub_portfolio_id"],
-            right_on=["parent_instrument_id", "container", "sub_portfolio_id"],
-            how="left",
-            suffix="_right",
-        )
-    else:
-        joined_df = position_df.with_columns([
-            pl.lit(None, dtype=pl.Int64).alias("instrument_id_right"),
-            pl.lit(None, dtype=pl.Float64).alias(f"weight_{suffix}_right"),
-        ])
+    # Fix: only include columns that actually exist in positions
+    _id_candidates = ['container', 'record_type', 'parent_instrument_id',
+                      'instrument_id', 'composite_id', 'identifier']
+    identifiers = pl.selectors.by_name([c for c in _id_candidates if c in pos_schema])
 
-    # === Step 6: Calculate PI, PR, BS, BC ===
-    joined_df = joined_df.with_columns([
-        pl.when(
-            (pl.col("container").cast(pl.Utf8) == "holding")
-            & (pl.col("instrument_id_right").is_not_null())
-        ).then(pl.col(f"initial_exposure_weight_{suffix}") * pl.col(f"weight_{suffix}_right"))
-        .when(
-            (pl.col("container").cast(pl.Utf8) == "holding")
-            & (pl.col("instrument_id_right").is_null())
-            & (not is_lookthrough_level_no)
-        ).then(pl.col(f"initial_exposure_weight_{suffix}"))
-        .when(
-            (pl.col("container").cast(pl.Utf8) == "holding")
-            & (pl.col("instrument_id_right").is_null())
-            & is_lookthrough_level_no
-        ).then(pl.col(f"initial_weight_{suffix}"))
-        .otherwise(pl.lit(None, dtype=pl.Float64))
-        .alias("PI"),
-
-        pl.when(
-            (pl.col("container").cast(pl.Utf8) == "holding")
-            & (pl.col("instrument_id_right").is_not_null())
-        ).then(pl.col(f"resulting_exposure_weight_{suffix}") * pl.col(f"weight_{suffix}_right"))
-        .when(
-            (pl.col("container").cast(pl.Utf8) == "holding")
-            & (pl.col("instrument_id_right").is_null())
-            & (not is_lookthrough_level_no)
-        ).then(pl.col(f"resulting_exposure_weight_{suffix}"))
-        .when(
-            (pl.col("container").cast(pl.Utf8) == "holding")
-            & (pl.col("instrument_id_right").is_null())
-            & is_lookthrough_level_no
-        ).then(pl.col(f"resulting_weight_{suffix}"))
-        .otherwise(pl.lit(None, dtype=pl.Float64))
-        .alias("PR"),
-
-        pl.when(pl.col("container").cast(pl.Utf8) == "contractual_reference")
-        .then(pl.col(f"weight_{suffix}"))
-        .otherwise(pl.lit(None, dtype=pl.Float64))
-        .alias("BC"),
-
-        pl.when(pl.col("container").cast(pl.Utf8) == "selected_reference")
-        .then(pl.col(f"weight_{suffix}"))
-        .otherwise(pl.lit(None, dtype=pl.Float64))
-        .alias("BS"),
-    ])
-
-    # Step 7 removed: additional_attributes stay from the parent position
-    # (normalized at Step 2c). Old PE composites don't carry additional_attributes,
-    # so the parent position's values are canonical.
-
-    # === Step 8: Set parent_instrument_id ===
-    joined_df = joined_df.with_columns([
-        pl.when(pl.col("instrument_id_right").is_not_null())
-        .then(pl.col("instrument_id"))
-        .otherwise(pl.col("instrument_id"))
-        .alias("parent_instrument_id_new"),
-    ])
-
-    # === Step 9: Update instrument_id (use underlying if exists) ===
-    joined_df = joined_df.with_columns([
-        pl.when(pl.col("instrument_id_right").is_not_null())
-        .then(pl.col("instrument_id_right"))
-        .otherwise(pl.col("instrument_id"))
-        .alias("instrument_id"),
-    ])
-    joined_df = joined_df.with_columns([
-        pl.col("parent_instrument_id_new").alias("parent_instrument_id"),
-    ])
-
-    # === Step 10: Handle shares from composites ===
-    joined_schema = joined_df.collect_schema().names()
-    shares_exprs = []
-    for val in ["initial_shares", "resulting_shares", "blocked_shares"]:
-        if val in joined_schema and val + "_right" in joined_schema:
-            shares_exprs.append(
-                pl.when(pl.col("instrument_id_right").is_not_null())
-                .then(pl.col(val + "_right"))
-                .otherwise(pl.col(val))
-                .alias(val)
-            )
-    if shares_exprs:
-        joined_df = joined_df.with_columns(shares_exprs)
-
-    # === Step 11: Add scale_holdings as column ===
-    joined_df = joined_df.with_columns(pl.lit(scale_holdings).alias("scale_holdings"))
-
-    # === Step 12: Join with value_metadata (BEFORE grouping, matches old code) ===
-    if value_metadata is not None:
-        joined_df = joined_df.join(value_metadata, how="cross")
-    else:
-        joined_df = joined_df.with_columns([
-            pl.lit(1_000_000.0).alias("total_net_assets_initial_portfolio"),
-            pl.lit(1_000_000.0).alias("total_net_assets_resulting_portfolio"),
-            pl.lit(1_000_000.0).alias("total_net_assets_selected_benchmark"),
-            pl.lit(1_000_000.0).alias("total_net_assets_contractual_benchmark"),
-        ])
-
-    # === Step 13: Calculate PIV/PRV/BSV/BCV (BEFORE grouping, matches old code) ===
-    if scale_holdings and scale_factors_lf is not None:
-        # Pivot long-format scale_factors into wide-format columns:
-        # (config, perspective_id, container, weight_label, scale_factor)
-        # -> scale_factors_holding_initial_weight, scale_factors_selected_reference_weight, etc.
-        sf = scale_factors_lf.filter(
-            (pl.col("config") == config) & (pl.col("perspective_id") == pid)
-        ).collect()
-        sf_dict = {}
-        for row in sf.iter_rows(named=True):
-            key = f"scale_factors_{row['container']}_{row['weight_label']}"
-            sf_dict[key] = row["scale_factor"]
-
-        sf_cols = [
-            pl.lit(sf_dict.get(k, 1.0)).alias(k)
-            for k in [
-                "scale_factors_holding_initial_weight",
-                "scale_factors_holding_resulting_weight",
-                "scale_factors_holding_initial_exposure_weight",
-                "scale_factors_holding_resulting_exposure_weight",
-                "scale_factors_selected_reference_weight",
-                "scale_factors_contractual_reference_weight",
-            ]
-        ]
-        joined_df = joined_df.with_columns(sf_cols)
-
-        joined_df = joined_df.with_columns([
-            pl.when(pl.col("scale_holdings"))
-            .then(pl.col("PI") * pl.col("total_net_assets_initial_portfolio") * pl.col("scale_factors_holding_initial_weight"))
-            .otherwise(pl.col("PI") * pl.col("total_net_assets_initial_portfolio"))
-            .alias("PIV"),
-            pl.when(pl.col("scale_holdings"))
-            .then(pl.col("PR") * pl.col("total_net_assets_resulting_portfolio") * pl.col("scale_factors_holding_resulting_weight"))
-            .otherwise(pl.col("PR") * pl.col("total_net_assets_resulting_portfolio"))
-            .alias("PRV"),
-            pl.when(pl.col("scale_holdings"))
-            .then(pl.col("BS") * pl.col("total_net_assets_selected_benchmark") * pl.col("scale_factors_selected_reference_weight"))
-            .otherwise(pl.col("BS") * pl.col("total_net_assets_selected_benchmark"))
-            .alias("BSV"),
-            pl.when(pl.col("scale_holdings"))
-            .then(pl.col("BC") * pl.col("total_net_assets_contractual_benchmark") * pl.col("scale_factors_contractual_reference_weight"))
-            .otherwise(pl.col("BC") * pl.col("total_net_assets_contractual_benchmark"))
-            .alias("BCV"),
-        ])
-    else:
-        joined_df = joined_df.with_columns([
-            (pl.col("PI") * pl.col("total_net_assets_initial_portfolio")).alias("PIV"),
-            (pl.col("PR") * pl.col("total_net_assets_resulting_portfolio")).alias("PRV"),
-            (pl.col("BS") * pl.col("total_net_assets_selected_benchmark")).alias("BSV"),
-            (pl.col("BC") * pl.col("total_net_assets_contractual_benchmark")).alias("BCV"),
-        ])
-
-    # === Step 14: Group by (matches old code structure) ===
-    value_cols = ["PI", "PIV", "PR", "PRV", "BS", "BSV", "BC", "BCV"]
-    shares_columns = [c for c in ["initial_shares", "resulting_shares", "blocked_shares"]
-                      if c in joined_df.collect_schema().names()]
-    value_cols.extend(shares_columns)
-
-    group_by_cols = additional_attributes + [
-        "instrument_id",
-        "parent_instrument_id",
-        "scale_holdings",
-        "total_net_assets_initial_portfolio",
-        "total_net_assets_resulting_portfolio",
-    ]
-
-    joined_df = joined_df.group_by(group_by_cols).agg(
-        [cs.numeric().sum(), cs.exclude(cs.numeric()).first()]
+    weights_columns = pl.selectors.matches(
+        r'^(initial_weight|resulting_weight|initial_exposure_weight'
+        r'|resulting_exposure_weight|weight|resulting_exposure|initial_exposure)$'
     )
 
-    # === Step 15: Rescale (always runs, filtered by scale_holdings column) ===
-    rescale_cols = ["PI", "PR", "BS", "BC"]
-    for m in rescale_cols:
-        total_m = pl.col(m).filter(pl.col("scale_holdings")).sum()
-        factor = pl.when(total_m.ne(0)).then(1.0 / total_m).otherwise(1.0)
-        joined_df = joined_df.with_columns([
-            (pl.col(m) * factor).alias(m),
-            (pl.col(f"{m}V") * factor).alias(f"{m}V"),
+    psp_weights = pl.selectors.matches(
+        r'^(initial_weight|resulting_weight|initial_exposure_weight'
+        r'|resulting_exposure_weight|weight)_\d+_-?\d+(_right)?$'
+    )
+
+    psp_factors = pl.selectors.matches(
+        r'^(f_\d+_-?\d+|parent_f_\d+_-?\d+|f_\d+_-?\d+_factors)$'
+    )
+    psp_cols = psp_weights | psp_factors
+    meta_data = ~(identifiers | weights_columns | psp_cols)
+
+    meta_data_cols = pos.select(meta_data).collect_schema().names()
+
+    # Fix: use instrument_id_right from the join instead of composite_id
+    is_holding = pl.col('container').cast(pl.Utf8).eq('holding')
+    is_contractual = pl.col('container').cast(pl.Utf8).eq('contractual_reference')
+    is_selected = pl.col('container').cast(pl.Utf8).eq('selected_reference')
+
+    # --- Composite join ---
+    is_no = (granularity == "no")
+    if is_no or lt is None:
+        joined = pos.with_columns([
+            pl.lit(None, dtype=pl.Int64).alias("instrument_id_right"),
         ])
+    else:
+        lt_filtered = lt.filter(
+            pl.col(fcol).is_not_null()
+            & pl.col("record_type").cast(pl.Utf8).eq(granularity)
+        )
+        lt_filtered = _replace_sentinels(
+            lt_filtered,
+            exclude_int={"instrument_id", "parent_instrument_id", "identifier"},
+        )
 
-    # === Step 16: Select to_keep columns ===
-    to_keep = additional_attributes + value_cols + [
-        "instrument_id",
-        "parent_instrument_id",
-        "scale_holdings",
-        "total_net_assets_initial_portfolio",
-        "total_net_assets_resulting_portfolio",
-    ]
-    joined_df = joined_df.select(to_keep)
+        # Fix: use parent_instrument_id instead of composite_id
+        joined = pos.join(
+            lt_filtered,
+            left_on=['instrument_id', 'container'],
+            right_on=['parent_instrument_id', 'container'],
+            coalesce=False,
+            how='left',
+        )
 
-    # === Step 17: Fill nulls ===
-    joined_df = joined_df.with_columns([
+    # Fix: detect composite via instrument_id_right instead of composite_id
+    is_composite = pl.col('instrument_id_right').is_not_null()
+
+    joined = joined.select(
+        'container',
+        pl.col('instrument_id').alias('parent_instrument_id'),
+        pl.when(is_composite)
+        .then('instrument_id_right')
+        .otherwise('instrument_id')
+        .alias('instrument_id'),
+        *[
+            pl.when(is_composite).then(f'{c}_right').otherwise(pl.col(c)).alias(c)
+            if f'{c}_right' in joined.collect_schema().names()
+            else pl.col(c)
+            for c in meta_data_cols
+        ],
+        psp_factors,
+        psp_weights,
+    )
+
+    # --- Per perspective ---
+    value_cols = pl.selectors.matches(
+        rf'^(initial_weight|resulting_weight|initial_exposure_weight'
+        rf'|resulting_exposure_weight|weight)_{config}_{pid}'
+    )
+
+    initial_exposure_weight = pl.col(f'initial_exposure_weight_{suffix}')
+    resulting_exposure_weight = pl.col(f'resulting_exposure_weight_{suffix}')
+    weight = pl.col(f'weight_{suffix}')
+    composite_weight = pl.col(f'weight_{suffix}_right')
+    has_composite_weight = composite_weight.is_not_null()
+
+    df = joined.filter(pl.col(fcol).is_not_null())
+
+    if is_no:
+        iw = pl.col(f'initial_weight_{suffix}')
+        rw = pl.col(f'resulting_weight_{suffix}')
+        df = df.group_by(~(container | value_cols | psp_factors)).agg(
+            iw.filter(is_holding).sum().alias('PI'),
+            rw.filter(is_holding).sum().alias('PR'),
+            weight.filter(is_contractual).sum().alias('BC'),
+            weight.filter(is_selected).sum().alias('BS'),
+        )
+    else:
+        df = df.group_by(~(container | value_cols | psp_factors)).agg(
+            pl.when(has_composite_weight)
+            .then(initial_exposure_weight * composite_weight)
+            .otherwise(initial_exposure_weight)
+            .filter(is_holding)
+            .sum()
+            .alias('PI'),
+            pl.when(has_composite_weight)
+            .then(resulting_exposure_weight * composite_weight)
+            .otherwise(resulting_exposure_weight)
+            .filter(is_holding)
+            .sum()
+            .alias('PR'),
+            weight.filter(is_contractual).sum().alias('BC'),
+            weight.filter(is_selected).sum().alias('BS'),
+        )
+
+    # --- Fill nulls, filter small, active weights ---
+    df = df.with_columns([
         pl.col(c).fill_null(0.0).fill_nan(0.0).alias(c)
-        for c in value_cols
+        for c in ['PI', 'PR', 'BS', 'BC']
     ])
-
-    # === Step 18: Filter small positions ===
-    joined_df = joined_df.with_columns([
+    df = df.with_columns([
         pl.when(pl.col(c).abs().le(1e-15)).then(0.0).otherwise(pl.col(c)).alias(c)
-        for c in ["PI", "PR", "BS", "BC"]
+        for c in ['PI', 'PR', 'BS', 'BC']
+    ])
+    df = df.with_columns([
+        (pl.col('PI') - pl.col('BC')).alias('AIC'),
+        (pl.col('PR') - pl.col('BC')).alias('ARC'),
+        (pl.col('PI') - pl.col('BS')).alias('AIS'),
+        (pl.col('PR') - pl.col('BS')).alias('ARS'),
     ])
 
-    # === Step 19: Calculate active weights ===
-    joined_df = joined_df.with_columns([
-        (pl.col("PI") - pl.col("BC")).alias("AIC"),
-        (pl.col("PR") - pl.col("BC")).alias("ARC"),
-        (pl.col("PI") - pl.col("BS")).alias("AIS"),
-        (pl.col("PR") - pl.col("BS")).alias("ARS"),
-    ])
-
-    # === Step 20: Calculate active values ===
-    joined_df = joined_df.with_columns([
-        (pl.col("total_net_assets_initial_portfolio") * pl.col("AIC")).alias("AICV"),
-        (pl.col("total_net_assets_resulting_portfolio") * pl.col("ARC")).alias("ARCV"),
-        (pl.col("total_net_assets_initial_portfolio") * pl.col("AIS")).alias("AISV"),
-        (pl.col("total_net_assets_resulting_portfolio") * pl.col("ARS")).alias("ARSV"),
-    ])
-
-    return joined_df
-
-
-def build_perspective_dict(
-    positions_lf: pl.LazyFrame,
-    lookthroughs_lf: Optional[pl.LazyFrame],
-    scale_factors_lf: Optional[pl.LazyFrame],
-    perspective_configs: Dict[str, Dict[str, List[str]]],
-    value_metadata: Optional[pl.LazyFrame] = None,
-    scale_holdings: bool = False,
-    record_types: List[str] = None,
-) -> Dict[str, Dict[int, Dict[str, pl.LazyFrame]]]:
-    """
-    Build dict structure: {config: {pid: {granularity: LazyFrame}}}
-
-    All returned LazyFrames are lazy - call .collect() when you need results.
-    """
-    if record_types is None:
-        record_types = ["essential_lookthroughs", "complete_lookthroughs"]
-
-    result: Dict[str, Dict[int, Dict[str, pl.LazyFrame]]] = {}
-
-    for config, pmap in perspective_configs.items():
-        result[config] = {}
-        for pid_str in pmap:
-            pid = int(pid_str)
-            result[config][pid] = {}
-
-            # "no" granularity
-            result[config][pid]["no"] = calculate_single_lookthrough(
-                positions_lf=positions_lf,
-                lookthroughs_lf=lookthroughs_lf,
-                scale_factors_lf=scale_factors_lf,
-                config=config,
-                pid=pid,
-                granularity="no",
-                value_metadata=value_metadata,
-                scale_holdings=scale_holdings,
-            )
-
-            # Lookthrough granularities
-            for rt in record_types:
-                result[config][pid][rt] = calculate_single_lookthrough(
-                    positions_lf=positions_lf,
-                    lookthroughs_lf=lookthroughs_lf,
-                    scale_factors_lf=scale_factors_lf,
-                    config=config,
-                    pid=pid,
-                    granularity=rt,
-                    value_metadata=value_metadata,
-                    scale_holdings=scale_holdings,
-                )
-
-    return result
+    return df
