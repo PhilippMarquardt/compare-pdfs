@@ -1,6 +1,6 @@
 import type { GlobalPageAnalysis, JobMetadata, PageAnalysis, SectionPageAnalysisResult } from '../types/job'
 
-const API_BASE = ''
+const API_BASE = 'http://localhost:30099'
 
 export async function createJob(
   referenceFiles: File[],
