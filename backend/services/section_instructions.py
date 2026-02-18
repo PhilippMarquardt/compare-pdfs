@@ -1,12 +1,10 @@
 """
-Section instruction template parser with fuzzy matching.
+Strict section instruction template parser with fuzzy section matching.
 
-Parses backend/templates/section_instructions.md into:
-- generic: always-apply instructions
-- specific: fallback instructions (when no section match)
-- sections: dict of section_name → instructions
-
-Fuzzy matches GPT section names against template headings.
+Template format:
+- ## Generic: bullet checklist items only
+- ## Specific: bullet checklist items only (may be empty)
+- ## Sections / ### Name: bullet checklist items only
 """
 
 import re
@@ -17,15 +15,46 @@ from rapidfuzz import fuzz, process
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "section_instructions.md"
 
 FUZZY_THRESHOLD = 95
+BULLET_RE = re.compile(r"^\s*[-*]\s*(?:\[\s*\]\s*)?(.+?)\s*$")
 
 
-def _parse_template(text: str) -> tuple[str, str, dict[str, str]]:
-    """Parse the markdown template into (generic, specific, sections)."""
-    generic = ""
-    specific = ""
-    sections: dict[str, str] = {}
+def _parse_checklist_block(text: str, block_name: str, *, required: bool = False) -> list[str]:
+    items: list[str] = []
+    invalid_lines: list[str] = []
 
-    # Split by ## headings
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = BULLET_RE.match(raw_line)
+        if not match:
+            invalid_lines.append(line)
+            continue
+        item = match.group(1).strip()
+        if item:
+            items.append(item)
+
+    if invalid_lines:
+        preview = ", ".join(invalid_lines[:3])
+        raise ValueError(
+            f"{block_name} must contain only bullet checklist items. Invalid lines: {preview}"
+        )
+
+    if required and not items:
+        raise ValueError(f"{block_name} must contain at least one bullet checklist item.")
+
+    return items
+
+
+def _items_to_markdown(items: list[str]) -> str:
+    return "\n".join(f"- {item}" for item in items)
+
+
+def _parse_template(text: str) -> tuple[list[str], list[str], dict[str, list[str]]]:
+    generic: list[str] = []
+    specific: list[str] = []
+    sections: dict[str, list[str]] = {}
+
     parts = re.split(r"^## ", text, flags=re.MULTILINE)
 
     for part in parts:
@@ -36,47 +65,63 @@ def _parse_template(text: str) -> tuple[str, str, dict[str, str]]:
         body = lines[1].strip() if len(lines) > 1 else ""
 
         if heading == "Generic":
-            generic = body
+            generic = _parse_checklist_block(body, "Generic", required=True)
         elif heading == "Specific":
-            specific = body
+            specific = _parse_checklist_block(body, "Specific", required=False)
         elif heading == "Sections":
-            # Parse ### sub-headings
             section_parts = re.split(r"^### ", body, flags=re.MULTILINE)
-            for sp in section_parts:
-                if not sp.strip():
+            for section_part in section_parts:
+                if not section_part.strip():
                     continue
-                sp_lines = sp.strip().split("\n", 1)
-                section_name = sp_lines[0].strip()
-                section_body = sp_lines[1].strip() if len(sp_lines) > 1 else ""
+                section_lines = section_part.strip().split("\n", 1)
+                section_name = section_lines[0].strip()
+                section_body = section_lines[1].strip() if len(section_lines) > 1 else ""
                 if section_name:
-                    sections[section_name] = section_body
+                    sections[section_name] = _parse_checklist_block(
+                        section_body,
+                        f'Section "{section_name}"',
+                        required=True,
+                    )
+
+    if not generic:
+        raise ValueError("Generic must contain at least one bullet checklist item.")
 
     return generic, specific, sections
 
 
-def load_section_instructions() -> tuple[str, str, dict[str, str]]:
-    """Load and parse the section instructions template."""
+def load_section_instructions() -> tuple[list[str], list[str], dict[str, list[str]]]:
+    """Load and strictly parse the section instructions template."""
     if not TEMPLATE_PATH.exists():
-        return "", "", {}
+        raise ValueError("Section instructions template file is missing.")
     text = TEMPLATE_PATH.read_text(encoding="utf-8")
     return _parse_template(text)
 
 
+def validate_section_instructions_template() -> None:
+    """Raise ValueError when the template is not strict checklist format."""
+    load_section_instructions()
+
+
 def get_instructions_for_section(section_name: str) -> dict:
-    """Get instructions for a section. Returns:
+    """
+    Returns:
     {
-        "generic": str,
-        "instructions": str,  # section-specific if matched, else global specific
-        "matched": bool,      # whether a section-specific match was found
-        "matched_name": str | None,  # the template section name that matched
+      "generic": str,         # markdown bullet list
+      "instructions": str,    # markdown bullet list
+      "generic_items": list[str],
+      "specific_items": list[str],
+      "matched": bool,
+      "matched_name": str | None
     }
     """
     generic, specific, sections = load_section_instructions()
 
     if not sections:
         return {
-            "generic": generic,
-            "instructions": specific,
+            "generic": _items_to_markdown(generic),
+            "instructions": _items_to_markdown(specific),
+            "generic_items": generic,
+            "specific_items": specific,
             "matched": False,
             "matched_name": None,
         }
@@ -89,32 +134,36 @@ def get_instructions_for_section(section_name: str) -> dict:
 
     if match and match[1] >= FUZZY_THRESHOLD:
         matched_name = match[0]
+        section_items = sections[matched_name]
         return {
-            "generic": generic,
-            "instructions": sections[matched_name],
+            "generic": _items_to_markdown(generic),
+            "instructions": _items_to_markdown(section_items),
+            "generic_items": generic,
+            "specific_items": section_items,
             "matched": True,
             "matched_name": matched_name,
         }
 
     return {
-        "generic": generic,
-        "instructions": specific,
+        "generic": _items_to_markdown(generic),
+        "instructions": _items_to_markdown(specific),
+        "generic_items": generic,
+        "specific_items": specific,
         "matched": False,
         "matched_name": None,
     }
 
 
 def get_raw_section_instructions(section_name: str) -> dict:
-    """Get raw section-specific instructions (exact or fuzzy match).
-    Returns {"instructions": str, "matched_name": str | None} for the editor UI.
-    """
+    """Get editable section checklist markdown (exact or fuzzy section match)."""
     _, _, sections = load_section_instructions()
 
-    # Try exact match first
     if section_name in sections:
-        return {"instructions": sections[section_name], "matched_name": section_name}
+        return {
+            "instructions": _items_to_markdown(sections[section_name]),
+            "matched_name": section_name,
+        }
 
-    # Fuzzy match
     if sections:
         match = process.extractOne(
             section_name,
@@ -122,37 +171,44 @@ def get_raw_section_instructions(section_name: str) -> dict:
             scorer=fuzz.WRatio,
         )
         if match and match[1] >= FUZZY_THRESHOLD:
-            return {"instructions": sections[match[0]], "matched_name": match[0]}
+            return {
+                "instructions": _items_to_markdown(sections[match[0]]),
+                "matched_name": match[0],
+            }
 
     return {"instructions": "", "matched_name": None}
 
 
 def list_all_sections() -> dict[str, str]:
-    """List all section-specific entries."""
+    """List all section-specific entries as markdown bullet lists."""
     _, _, sections = load_section_instructions()
-    return sections
+    return {name: _items_to_markdown(items) for name, items in sections.items()}
 
 
 def get_generic_instructions() -> str:
-    """Get instructions from the Generic section."""
-    text = TEMPLATE_PATH.read_text(encoding="utf-8") if TEMPLATE_PATH.exists() else ""
-    generic, _, _ = _parse_template(text)
-    return generic
+    """Get Generic section checklist as markdown bullets."""
+    generic, _, _ = load_section_instructions()
+    return _items_to_markdown(generic)
 
 
 def save_generic_instructions(instructions: str) -> None:
-    """Save instructions to the Generic section."""
+    """Save Generic section checklist."""
     text = TEMPLATE_PATH.read_text(encoding="utf-8") if TEMPLATE_PATH.exists() else ""
     _, specific, sections = _parse_template(text)
-    _write_template(instructions, specific, sections)
+    generic = _parse_checklist_block(instructions, "Generic", required=True)
+    _write_template(generic, specific, sections)
 
 
 def save_section_instructions(section_name: str, instructions: str) -> None:
-    """Save or update section-specific instructions in the template file."""
+    """Save or update section-specific checklist items."""
     text = TEMPLATE_PATH.read_text(encoding="utf-8") if TEMPLATE_PATH.exists() else ""
     generic, specific, sections = _parse_template(text)
+    items = _parse_checklist_block(
+        instructions,
+        f'Section "{section_name}"',
+        required=True,
+    )
 
-    # Check if fuzzy match exists — update that entry instead of creating duplicate
     if section_name not in sections and sections:
         match = process.extractOne(
             section_name,
@@ -160,25 +216,21 @@ def save_section_instructions(section_name: str, instructions: str) -> None:
             scorer=fuzz.WRatio,
         )
         if match and match[1] >= FUZZY_THRESHOLD:
-            # Remove old entry, use new name
             del sections[match[0]]
 
-    sections[section_name] = instructions
+    sections[section_name] = items
     _write_template(generic, specific, sections)
 
 
 def delete_section_instructions(section_name: str) -> bool:
     """Remove a section-specific entry. Returns True if found and deleted."""
-    text = TEMPLATE_PATH.read_text(encoding="utf-8") if TEMPLATE_PATH.exists() else ""
-    generic, specific, sections = _parse_template(text)
+    generic, specific, sections = load_section_instructions()
 
-    # Exact match first
     if section_name in sections:
         del sections[section_name]
         _write_template(generic, specific, sections)
         return True
 
-    # Fuzzy match
     if sections:
         match = process.extractOne(
             section_name,
@@ -193,15 +245,22 @@ def delete_section_instructions(section_name: str) -> bool:
     return False
 
 
-def _write_template(generic: str, specific: str, sections: dict[str, str]) -> None:
-    """Write the template file back."""
+def _write_template(generic: list[str], specific: list[str], sections: dict[str, list[str]]) -> None:
+    """Write template back in strict checklist format."""
     lines = ["# Section Analysis Instructions", ""]
-    lines += ["## Generic", generic, ""]
-    lines += ["## Specific", specific, ""]
+
+    lines += ["## Generic"]
+    lines += [f"- {item}" for item in generic]
+    lines += [""]
+
+    lines += ["## Specific"]
+    lines += [f"- {item}" for item in specific]
+    lines += [""]
+
     lines += ["## Sections"]
+    for name, items in sorted(sections.items()):
+        lines += ["", f"### {name}"]
+        lines += [f"- {item}" for item in items]
 
-    for name, body in sorted(sections.items()):
-        lines += ["", f"### {name}", body]
-
-    lines.append("")  # trailing newline
+    lines.append("")
     TEMPLATE_PATH.write_text("\n".join(lines), encoding="utf-8")

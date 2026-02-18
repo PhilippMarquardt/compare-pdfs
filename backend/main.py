@@ -7,12 +7,7 @@ app = FastAPI(title="PDF Compare API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3001",
-        "http://localhost:30097",
-        "http://localhost:30098",
-        "http://localhost:30099",
-    ],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -2,7 +2,9 @@ import type { GlobalPageAnalysis, JobMetadata, PageAnalysis, SectionPageAnalysis
 
 // Deployment note: after changing API_BASE, run `npm run build` in `frontend/`
 // and copy the built frontend folder into `compare-pdfs` before `git add/commit`.
-const API_BASE = 'http://localhost:30099'
+const API_BASE =
+  (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
+    ?.VITE_API_BASE_URL ?? '/api'
 
 export async function createJob(
   referenceFiles: File[],
@@ -168,6 +170,30 @@ export async function sendSectionChat(
   )
   if (!res.ok) {
     throw new Error(`Section chat failed: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function getSectionChatContext(
+  jobId: string,
+  pairId: string,
+  sectionName: string,
+  page: number,
+): Promise<{
+  reference_image_data_url: string | null
+  test_image_data_url: string | null
+  reference_text_excerpt: string
+  test_text_excerpt: string
+}> {
+  const qs = new URLSearchParams({
+    section_name: sectionName,
+    page: String(page),
+  })
+  const res = await fetch(
+    `${API_BASE}/api/jobs/${jobId}/pairs/${pairId}/section-chat-context?${qs.toString()}`,
+  )
+  if (!res.ok) {
+    throw new Error(`Get section chat context failed: ${res.status}`)
   }
   return res.json()
 }

@@ -7,7 +7,7 @@ import pdfplumber
 
 
 MERGE_TOLERANCE = 1  # pts for rect touching
-PROXIMITY_GAP = 5    # pts for nearby element merging
+PROXIMITY_GAP = 6    # pts for nearby element merging
 
 
 def extract_page_map(pdf_path: str, page_num: int) -> dict:
@@ -94,7 +94,7 @@ def _extract_raw(pdf_path: str, page_num: int) -> dict:
             elements.append({
                 "type": "text",
                 "bbox": [w["x0"], w["top"], w["x1"], w["bottom"]],
-                "content": w["text"][:80],
+                "content": w["text"],
             })
 
         for r in page.rects:
@@ -240,7 +240,7 @@ def _recursive_rect_merge(elements, page_width, page_height, max_page_fraction=0
         result.append({
             "type": "merged",
             "bbox": bbox,
-            "content": " | ".join(texts[:5]) if texts else None,
+            "content": " | ".join(texts) if texts else None,
             "child_count": len(group),
         })
     result.extend(free)
@@ -299,6 +299,6 @@ def _merge_nearby(elements, gap=PROXIMITY_GAP):
         result.append({
             "type": btype,
             "bbox": bbox,
-            "content": " ".join(text_content[:10]) if text_content else None,
+            "content": " ".join(text_content) if text_content else None,
         })
     return result

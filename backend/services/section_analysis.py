@@ -14,7 +14,7 @@ from typing import Any
 from PIL import Image
 
 from ..models import CheckStatus, SectionCheck, SectionCheckResult
-from .paired_sections import _get_client, SCALE
+from .paired_sections import SCALE, _get_client
 from .section_instructions import get_instructions_for_section
 
 logger = logging.getLogger(__name__)
@@ -25,18 +25,25 @@ TOP_P = 1
 SEED = 12345
 MAX_TOKENS = 4096
 
-SYSTEM_PROMPT = """You compare two cropped section images from a financial report — a reference version and a test version.
+SYSTEM_PROMPT = """You compare two cropped section images from a financial report: a reference version and a test version.
 
 The pages may represent different points in time, so data values (numbers, dates, percentages) are EXPECTED to differ. Do NOT flag value differences as issues.
 
-You will receive instructions listing specific items to check. Treat EACH instruction bullet as a separate check item and report on it individually.
+You will receive checklists as bullet items. Treat EACH bullet item as one required check.
+Evaluate every checklist bullet before deciding status.
 
 For each check, report:
 - "check_name": short label for what was checked (3-5 words)
-- "status": "ok" (consistent), "maybe" (minor concern), or "issue" (clear problem)
+- "status": "ok", "maybe", or "issue"
 - "explanation": brief factual observation (1-2 sentences)
 
-Return ALL checks as a list. Be concise and factual."""
+Status rules:
+- ok: checklist criterion is clearly satisfied
+- issue: checklist criterion is clearly violated
+- maybe: evidence is insufficient to decide
+
+Never return "ok" if explanation says missing content, mismatch, failed criterion, or unclear evidence.
+Return all checks as a list. Be concise and factual."""
 
 SECTION_SCHEMA: dict[str, Any] = {
     "name": "section_checks",
@@ -76,7 +83,6 @@ def _crop_section(page_png: bytes, bbox: list[float]) -> bytes:
         int(bbox[2] * SCALE),
         int(bbox[3] * SCALE),
     )
-    # Clamp to image bounds
     pixel_bbox = (
         max(0, pixel_bbox[0]),
         max(0, pixel_bbox[1]),
@@ -89,6 +95,10 @@ def _crop_section(page_png: bytes, bbox: list[float]) -> bytes:
     return buf.getvalue()
 
 
+def _render_numbered_items(items: list[str]) -> str:
+    return "\n".join(f"{i}. {item}" for i, item in enumerate(items, start=1))
+
+
 async def analyze_section(
     ref_crop: bytes,
     test_crop: bytes,
@@ -96,16 +106,23 @@ async def analyze_section(
 ) -> SectionCheckResult:
     """Compare two cropped section images using GPT. Returns multiple checks."""
     instructions = get_instructions_for_section(section_name)
-    generic = instructions["generic"]
-    specific = instructions["instructions"]
+    generic_items = instructions["generic_items"]
+    specific_items = instructions["specific_items"]
     matched = instructions["matched"]
 
-    instruction_text = ""
-    if generic:
-        instruction_text += f"=== GENERAL INSTRUCTIONS ===\n{generic}\n\n"
-    if specific:
-        label = "SECTION-SPECIFIC INSTRUCTIONS" if matched else "DEFAULT INSTRUCTIONS"
-        instruction_text += f"=== {label} ===\n{specific}"
+    instruction_text_parts: list[str] = []
+    if generic_items:
+        instruction_text_parts.append(
+            "=== GENERAL CHECKLIST ===\n"
+            f"{_render_numbered_items(generic_items)}"
+        )
+    if specific_items:
+        label = "SECTION-SPECIFIC CHECKLIST" if matched else "DEFAULT CHECKLIST"
+        instruction_text_parts.append(
+            f"=== {label} ===\n"
+            f"{_render_numbered_items(specific_items)}"
+        )
+    instruction_text = "\n\n".join(instruction_text_parts)
 
     client = _get_client()
 
@@ -157,11 +174,13 @@ async def analyze_section(
         status = c.get("status", "maybe")
         if status not in ("ok", "maybe", "issue"):
             status = "maybe"
-        checks.append(SectionCheck(
-            check_name=c.get("check_name", "Check"),
-            status=CheckStatus(status),
-            explanation=c.get("explanation", ""),
-        ))
+        checks.append(
+            SectionCheck(
+                check_name=c.get("check_name", "Check"),
+                status=CheckStatus(status),
+                explanation=c.get("explanation", ""),
+            )
+        )
 
     return SectionCheckResult(
         section_name=section_name,

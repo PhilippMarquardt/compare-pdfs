@@ -81,7 +81,7 @@ export function GeneralInstructionsModal({
           <section className="space-y-2">
             <h3 className="text-sm font-semibold text-slate-800">Section Generic Instructions</h3>
             <p className="text-xs text-slate-500">
-              Maps to <code>section_instructions.md</code> under <code>## Generic</code>.
+              Use one checklist bullet per line (example: <code>- Verify ...</code>) for <code>section_instructions.md</code> under <code>## Generic</code>.
             </p>
             <textarea
               value={sectionGeneric}
@@ -95,7 +95,7 @@ export function GeneralInstructionsModal({
           <section className="space-y-2">
             <h3 className="text-sm font-semibold text-slate-800">Global Analysis Template</h3>
             <p className="text-xs text-slate-500">
-              Keep markdown structure and checklist headings (<code>### ...</code>) for stable output.
+              Use <code>### Check Name</code> headings, and only bullet checklist items under each heading. One bullet equals one model check.
             </p>
             <textarea
               value={globalTemplate}

@@ -1,22 +1,21 @@
 import { useState } from 'react'
 import type {
-  GlobalPageAnalysis,
-  CheckStatus,
   AnalysisStatus,
-  SectionPageAnalysisResult,
+  CheckStatus,
+  GlobalCheckResult,
+  GlobalPageAnalysis,
+  SectionCheck,
   SectionCheckResult,
+  SectionPageAnalysisResult,
 } from '../types/job'
+
+const PREVIEW_LENGTH = 80
+const PREVIEW_ROWS = 3
 
 const STATUS_DOT: Record<CheckStatus, string> = {
   ok: 'bg-green-500',
   maybe: 'bg-yellow-400',
   issue: 'bg-red-500',
-}
-
-const STATUS_BORDER: Record<CheckStatus, string> = {
-  ok: 'border-l-green-500',
-  maybe: 'border-l-yellow-400',
-  issue: 'border-l-red-500',
 }
 
 const STATUS_BADGE: Record<CheckStatus, string> = {
@@ -26,18 +25,37 @@ const STATUS_BADGE: Record<CheckStatus, string> = {
 }
 
 const STATUS_LABELS: Record<CheckStatus, string> = {
-  ok: 'OK',
-  maybe: 'Review',
-  issue: 'Issue',
+  ok: 'Pass',
+  maybe: 'Unclear',
+  issue: 'Fail',
 }
 
-function worstStatus(result: SectionCheckResult): CheckStatus {
-  let worst: CheckStatus = 'ok'
-  for (const c of result.checks) {
-    if (c.status === 'issue') return 'issue'
-    if (c.status === 'maybe') worst = 'maybe'
-  }
-  return worst
+const STATUS_PRIORITY: Record<CheckStatus, number> = {
+  issue: 0,
+  maybe: 1,
+  ok: 2,
+}
+
+const CARD_INDICATOR: Record<CheckStatus, string> = {
+  ok: 'bg-green-500',
+  maybe: 'bg-yellow-400',
+  issue: 'bg-red-500',
+}
+
+const CARD_ACCENT: Record<CheckStatus, string> = {
+  ok: 'border-l-2 border-l-green-400',
+  maybe: 'border-l-2 border-l-yellow-400',
+  issue: 'border-l-2 border-l-red-400',
+}
+
+const RECTANGLE_CLASS =
+  'h-[120px] rounded-md border border-slate-200 bg-white px-2.5 py-2.5'
+
+type AnyCheck = GlobalCheckResult | SectionCheck
+
+interface DetailModalState {
+  title: string
+  checks: AnyCheck[]
 }
 
 interface AnalysisPanelProps {
@@ -55,6 +73,22 @@ interface AnalysisPanelProps {
   sectionDetectionDone: boolean
 }
 
+function truncateText(text: string, maxLength = PREVIEW_LENGTH): string {
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, maxLength - 1)}...`
+}
+
+function sortChecksBySeverity<T extends AnyCheck>(checks: T[]): T[] {
+  return [...checks].sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status])
+}
+
+function getAggregateStatus(checks: AnyCheck[]): CheckStatus | null {
+  if (checks.some((c) => c.status === 'issue')) return 'issue'
+  if (checks.some((c) => c.status === 'maybe')) return 'maybe'
+  if (checks.length > 0) return 'ok'
+  return null
+}
+
 export function AnalysisPanel({
   globalAnalysis,
   globalStatus,
@@ -69,7 +103,7 @@ export function AnalysisPanel({
   onStartSectionAnalysis,
   sectionDetectionDone,
 }: AnalysisPanelProps) {
-  const [expandedSection, setExpandedSection] = useState<SectionCheckResult | null>(null)
+  const [detailModal, setDetailModal] = useState<DetailModalState | null>(null)
 
   const resultsByName = new Map<string, SectionCheckResult>()
   if (sectionResults) {
@@ -87,7 +121,6 @@ export function AnalysisPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Global Checks */}
         <div className="px-4 py-3 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -112,9 +145,7 @@ export function AnalysisPanel({
                 <div
                   className="h-full bg-blue-500 rounded-full transition-all"
                   style={{
-                    width: globalTotal
-                      ? `${(globalProgress / globalTotal) * 100}%`
-                      : '0%',
+                    width: globalTotal ? `${(globalProgress / globalTotal) * 100}%` : '0%',
                   }}
                 />
               </div>
@@ -126,28 +157,44 @@ export function AnalysisPanel({
           )}
 
           {globalAnalysis && globalAnalysis.checks.length > 0 && (
-            <div className="space-y-2">
-              {globalAnalysis.checks.map((check) => (
-                <div
-                  key={check.check_name}
-                  className={`rounded-lg border border-gray-200 border-l-4 ${STATUS_BORDER[check.status]} bg-white px-3 py-2.5 shadow-sm`}
+            (() => {
+              const sortedChecks = sortChecksBySeverity(globalAnalysis.checks)
+              const previewChecks = sortedChecks.slice(0, PREVIEW_ROWS)
+              const hiddenCount = sortedChecks.length - previewChecks.length
+              const aggregate = getAggregateStatus(sortedChecks)
+              return (
+                <button
+                  type="button"
+                  onClick={() => setDetailModal({
+                    title: 'Global Checks',
+                    checks: sortedChecks,
+                  })}
+                  className={`${RECTANGLE_CLASS} w-full text-left hover:border-slate-300 transition-colors ${aggregate ? CARD_ACCENT[aggregate] : ''}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-gray-800">
-                      {check.check_name}
-                    </span>
+                    <p className="text-sm font-semibold text-slate-900">Page Checklist</p>
                     <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${STATUS_BADGE[check.status]}`}
-                    >
-                      {STATUS_LABELS[check.status]}
-                    </span>
+                      className={`h-2.5 w-2.5 rounded-full shrink-0 ${aggregate ? CARD_INDICATOR[aggregate] : 'bg-slate-300'}`}
+                    />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                    {check.explanation}
-                  </p>
-                </div>
-              ))}
-            </div>
+                  <ul className="mt-1.5 space-y-1 overflow-hidden">
+                    {previewChecks.map((check, i) => (
+                      <li key={`${check.check_name}-${i}`} className="flex items-start gap-1.5 min-w-0">
+                        <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[check.status]}`} />
+                        <span className="text-[11px] leading-4 text-slate-700 truncate">
+                          {truncateText(check.check_name)}
+                        </span>
+                      </li>
+                    ))}
+                    {hiddenCount > 0 && (
+                      <li className="text-[11px] leading-4 text-slate-500">
+                        +{hiddenCount} more
+                      </li>
+                    )}
+                  </ul>
+                </button>
+              )
+            })()
           )}
 
           {globalStatus === 'done' && !globalAnalysis && (
@@ -155,7 +202,6 @@ export function AnalysisPanel({
           )}
         </div>
 
-        {/* Per-Section Analysis */}
         <div className="px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -190,35 +236,59 @@ export function AnalysisPanel({
           )}
 
           {sections.length > 0 ? (
-            <div className="space-y-2">
+            <div
+              className="grid gap-2"
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}
+            >
               {sections.map((s, i) => {
                 const result = resultsByName.get(s.name)
-                const border = result
-                  ? STATUS_BORDER[worstStatus(result)]
-                  : 'border-l-gray-300'
-
+                const hasChecks = !!result && result.checks.length > 0
+                const sortedChecks = hasChecks ? sortChecksBySeverity(result.checks) : []
+                const previewChecks = sortedChecks.slice(0, PREVIEW_ROWS)
+                const hiddenCount = sortedChecks.length - previewChecks.length
+                const aggregate = getAggregateStatus(sortedChecks)
                 return (
-                  <div
+                  <button
                     key={`${s.name}-${i}`}
-                    onClick={result && result.checks.length > 0 ? () => setExpandedSection(result) : undefined}
-                    className={`rounded-lg border border-gray-200 border-l-4 ${border} bg-white px-3 py-2 shadow-sm ${
-                      result && result.checks.length > 0 ? 'cursor-pointer hover:shadow-md hover:border-gray-300 transition-all' : ''
-                    }`}
+                    type="button"
+                    onClick={hasChecks ? () => setDetailModal({
+                      title: s.name,
+                      checks: sortedChecks,
+                    }) : undefined}
+                    className={`${RECTANGLE_CLASS} w-full text-left ${aggregate ? CARD_ACCENT[aggregate] : ''} ${hasChecks ? 'cursor-pointer hover:border-slate-300 transition-colors' : 'cursor-default'}`}
+                    aria-disabled={!hasChecks}
                   >
-                    <p className="text-sm font-medium text-gray-800 mb-1">{s.name}</p>
-                    {result && result.checks.length > 0 ? (
-                      <div className="space-y-0.5">
-                        {result.checks.map((check, ci) => (
-                          <div key={ci} className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[check.status]}`} />
-                            <span className="text-xs text-gray-600 truncate">{check.check_name}</span>
-                          </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-900 truncate" title={s.name}>
+                        {s.name}
+                      </p>
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full shrink-0 ${aggregate ? CARD_INDICATOR[aggregate] : 'bg-slate-300'}`}
+                      />
+                    </div>
+                    {hasChecks ? (
+                      <ul className="mt-1.5 space-y-1 overflow-hidden">
+                        {previewChecks.map((check, ci) => (
+                          <li key={ci} className="flex items-start gap-1.5 min-w-0">
+                            <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[check.status]}`} />
+                            <span className="text-[11px] leading-4 text-slate-700 truncate">
+                              {truncateText(check.check_name)}
+                            </span>
+                          </li>
                         ))}
-                      </div>
+                        {hiddenCount > 0 && (
+                          <li className="text-[11px] leading-4 text-slate-500">
+                            +{hiddenCount} more
+                          </li>
+                        )}
+                      </ul>
                     ) : (
-                      <p className="text-[11px] text-gray-400">{s.content_type}</p>
+                      <div className="mt-1.5 text-[11px] leading-4 text-slate-400">
+                        <p>{s.content_type}</p>
+                        <p>No section checks yet</p>
+                      </div>
                     )}
-                  </div>
+                  </button>
                 )
               })}
             </div>
@@ -228,20 +298,19 @@ export function AnalysisPanel({
         </div>
       </div>
 
-      {/* Section detail modal */}
-      {expandedSection && (
+      {detailModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
             className="absolute inset-0 bg-black/40"
-            onClick={() => setExpandedSection(null)}
+            onClick={() => setDetailModal(null)}
           />
-          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-5">
+          <div className="relative w-full max-w-2xl max-h-[80vh] mx-4 bg-white rounded-md border border-slate-200 shadow-xl p-5 flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <p className="text-base font-semibold text-gray-900">
-                {expandedSection.section_name}
+              <p className="text-base font-semibold text-slate-900 truncate" title={detailModal.title}>
+                {detailModal.title}
               </p>
               <button
-                onClick={() => setExpandedSection(null)}
+                onClick={() => setDetailModal(null)}
                 className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
@@ -249,23 +318,22 @@ export function AnalysisPanel({
                 </svg>
               </button>
             </div>
-            <div className="space-y-3">
-              {expandedSection.checks.map((check, ci) => (
-                <div
-                  key={ci}
-                  className={`rounded-lg border border-gray-200 border-l-4 ${STATUS_BORDER[check.status]} px-3 py-2.5`}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-sm font-medium text-gray-800">
+
+            <div className="space-y-3 overflow-y-auto pr-1">
+              {sortChecksBySeverity(detailModal.checks).map((check, ci) => (
+                <div key={ci} className="rounded-md border border-slate-200 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${STATUS_DOT[check.status]}`} />
+                    <span className="text-sm font-semibold text-slate-900">
                       {check.check_name}
                     </span>
                     <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${STATUS_BADGE[check.status]}`}
+                      className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded shrink-0 ${STATUS_BADGE[check.status]}`}
                     >
                       {STATUS_LABELS[check.status]}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600 leading-relaxed">
+                  <p className="text-xs text-slate-700 mt-2 leading-relaxed whitespace-pre-wrap">
                     {check.explanation}
                   </p>
                 </div>

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from .global_analysis import parse_global_template
 from .section_instructions import (
     get_generic_instructions,
     save_generic_instructions,
@@ -17,6 +18,9 @@ def get_general_instructions() -> dict[str, str]:
 
 
 def save_general_instructions(section_generic: str, global_template: str) -> None:
+    # Validate both payloads before writing anything.
+    parse_global_template(global_template)
+
     previous = get_general_instructions()
     try:
         save_generic_instructions(section_generic)

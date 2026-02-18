@@ -450,7 +450,7 @@ def _page_map_to_json(page_map: dict) -> str:
             "bbox": el["bbox"],
         }
         if el.get("content"):
-            entry["content"] = el["content"][:200]
+            entry["content"] = el["content"]
         compact["elements"].append(entry)
     return json.dumps(compact, ensure_ascii=False)
 

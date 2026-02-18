@@ -1,8 +1,9 @@
 """
 Global page analysis service.
 
-Reads check definitions from templates/global_analysis.md, sends both page images
-to GPT, returns structured ok/maybe/issue verdicts per check.
+Reads strict checklist definitions from templates/global_analysis.md, sends both
+page images to GPT, and returns structured pass/unclear/fail semantics via
+ok/maybe/issue statuses.
 """
 
 import base64
@@ -24,13 +25,83 @@ TEMPERATURE = 0
 TOP_P = 1
 SEED = 12345
 MAX_TOKENS = 4096
+BULLET_RE = re.compile(r"^\s*[-*]\s*(?:\[\s*\]\s*)?(.+?)\s*$")
 
 
-def _load_template() -> tuple[str, list[str]]:
-    """Load the template and extract check names from ### headings."""
+def _parse_checklist_block(text: str, block_name: str) -> list[str]:
+    items: list[str] = []
+    invalid_lines: list[str] = []
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = BULLET_RE.match(raw_line)
+        if not match:
+            invalid_lines.append(line)
+            continue
+        item = match.group(1).strip()
+        if item:
+            items.append(item)
+
+    if invalid_lines:
+        preview = ", ".join(invalid_lines[:3])
+        raise ValueError(
+            f'{block_name} must contain only bullet checklist items. Invalid lines: {preview}'
+        )
+
+    if not items:
+        raise ValueError(f"{block_name} must contain at least one bullet checklist item.")
+
+    return items
+
+
+def parse_global_template(text: str) -> list[tuple[str, list[str]]]:
+    parts = re.split(r"^### ", text, flags=re.MULTILINE)
+    checks: list[tuple[str, list[str]]] = []
+
+    for part in parts[1:]:
+        chunk = part.strip()
+        if not chunk:
+            continue
+        lines = chunk.split("\n", 1)
+        check_name = lines[0].strip()
+        check_body = lines[1].strip() if len(lines) > 1 else ""
+        if not check_name:
+            continue
+        items = _parse_checklist_block(check_body, f'Global check "{check_name}"')
+        checks.append((check_name, items))
+
+    if not checks:
+        raise ValueError("Global analysis template must contain at least one '### <Check Name>' block.")
+
+    return checks
+
+
+def validate_global_template_file() -> None:
+    if not TEMPLATE_PATH.exists():
+        raise ValueError("Global analysis template file is missing.")
     text = TEMPLATE_PATH.read_text(encoding="utf-8")
-    check_names = re.findall(r"^### (.+)$", text, re.MULTILINE)
-    return text, check_names
+    parse_global_template(text)
+
+
+def _render_checklist(checks: list[tuple[str, list[str]]]) -> str:
+    lines: list[str] = []
+    for check_name, items in checks:
+        lines.append(f"### {check_name}")
+        lines += [f"- {item}" for item in items]
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def _load_template() -> tuple[list[str], str]:
+    if not TEMPLATE_PATH.exists():
+        raise ValueError("Global analysis template file is missing.")
+    text = TEMPLATE_PATH.read_text(encoding="utf-8")
+    checks = parse_global_template(text)
+    check_names = [name for name, _ in checks]
+    checklist_text = _render_checklist(checks)
+    return check_names, checklist_text
 
 
 def _build_schema(check_names: list[str]) -> dict[str, Any]:
@@ -72,16 +143,20 @@ def _build_schema(check_names: list[str]) -> dict[str, Any]:
 SYSTEM_PROMPT = """You are a QA analyst comparing two versions of a financial report page.
 
 You will receive:
-1) A reference page image (the correct/expected version)
-2) A test page image (the version to verify)
-3) A checklist of items to verify
+1) A reference page image
+2) A test page image
+3) A checklist grouped by check name and bullet criteria
 
-For each check, respond with:
-- "ok" — no issues found
-- "maybe" — minor concern or ambiguous, worth reviewing
-- "issue" — clear problem detected
+Return exactly one output object per check_name.
+Evaluate all bullet criteria under each check_name before setting status.
 
-Be concise in explanations (1-2 sentences). Focus on factual observations, not speculation."""
+Status rules:
+- ok: all criteria clearly satisfied
+- issue: any criterion clearly violated
+- maybe: evidence is insufficient to decide
+
+Never return ok if your explanation indicates missing content, mismatches, or failed criteria.
+Write concise factual explanations (1-2 sentences) and explicitly state whether criteria are satisfied."""
 
 
 async def analyze_page_global(
@@ -90,7 +165,7 @@ async def analyze_page_global(
     """Run global checks on a single page pair."""
     import asyncio
 
-    template_text, check_names = _load_template()
+    check_names, checklist_text = _load_template()
 
     ref_image, test_image = await asyncio.gather(
         asyncio.to_thread(_render_page_image, ref_path, page_num),
@@ -107,7 +182,7 @@ async def analyze_page_global(
         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_ref}"}},
         {"type": "text", "text": "=== TEST PAGE ==="},
         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_test}"}},
-        {"type": "text", "text": f"=== CHECKLIST ===\n{template_text}"},
+        {"type": "text", "text": f"=== CHECKLIST ===\n{checklist_text}"},
     ]
 
     schema = _build_schema(check_names)
@@ -142,14 +217,16 @@ async def analyze_page_global(
     parsed = json.loads(raw)
 
     checks = []
-    for c in parsed.get("checks", []):
-        status = c.get("status", "maybe")
+    for check in parsed.get("checks", []):
+        status = check.get("status", "maybe")
         if status not in ("ok", "maybe", "issue"):
             status = "maybe"
-        checks.append(GlobalCheckResult(
-            check_name=c.get("check_name", "Unknown"),
-            status=status,
-            explanation=c.get("explanation", ""),
-        ))
+        checks.append(
+            GlobalCheckResult(
+                check_name=check.get("check_name", "Unknown"),
+                status=status,
+                explanation=check.get("explanation", ""),
+            )
+        )
 
     return GlobalPageAnalysis(page_number=page_num, checks=checks)

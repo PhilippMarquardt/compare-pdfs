@@ -10,15 +10,17 @@ from ..services.general_instructions import (
 )
 from ..services import analysis_store, global_analysis_store, job_store, section_analysis_store
 from ..services.analysis_pipeline import run_analysis
+from ..services.global_analysis import validate_global_template_file
 from ..services.global_analysis_pipeline import run_global_analysis
 from ..services.section_analysis_pipeline import run_section_analysis
 from ..services.section_instructions import (
+    validate_section_instructions_template,
     get_raw_section_instructions,
     list_all_sections,
     save_section_instructions,
     delete_section_instructions,
 )
-from ..services.section_chat import chat_with_section
+from ..services.section_chat import chat_with_section, get_section_chat_context
 
 router = APIRouter(prefix="/api")
 
@@ -60,6 +62,10 @@ async def start_global_analysis(job_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.global_analysis_status == "running":
         raise HTTPException(status_code=409, detail="Global analysis already running")
+    try:
+        validate_global_template_file()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     asyncio.create_task(run_global_analysis(job_id))
     return {"status": "started", "job_id": job_id}
@@ -92,6 +98,10 @@ async def start_section_analysis(job_id: str) -> dict:
         raise HTTPException(status_code=409, detail="Section detection must complete first")
     if job.section_analysis_status == "running":
         raise HTTPException(status_code=409, detail="Section analysis already running")
+    try:
+        validate_section_instructions_template()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     asyncio.create_task(run_section_analysis(job_id))
     return {"status": "started", "job_id": job_id}
@@ -142,7 +152,10 @@ class GeneralInstructionsBody(BaseModel):
 
 @router.put("/section-instructions/{section_name}")
 async def put_section_instructions(section_name: str, body: InstructionBody) -> dict:
-    save_section_instructions(section_name, body.instructions)
+    try:
+        save_section_instructions(section_name, body.instructions)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "saved", "section_name": section_name}
 
 
@@ -153,7 +166,10 @@ async def get_general_instructions_route() -> dict[str, str]:
 
 @router.put("/instructions/general")
 async def put_general_instructions_route(body: GeneralInstructionsBody) -> dict:
-    save_general_instructions(body.section_generic, body.global_template)
+    try:
+        save_general_instructions(body.section_generic, body.global_template)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "saved"}
 
 
@@ -171,6 +187,29 @@ async def section_chat(job_id: str, pair_id: str, body: SectionChatRequest) -> d
         body.section_name, body.page, body.message,
     )
     return {"response": response_text}
+
+
+@router.get("/jobs/{job_id}/pairs/{pair_id}/section-chat-context")
+async def section_chat_context(
+    job_id: str,
+    pair_id: str,
+    section_name: str = Query(...),
+    page: int = Query(...),
+) -> dict:
+    job = job_store.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    pair = next((p for p in job.pairs if p.pair_id == pair_id), None)
+    if not pair:
+        raise HTTPException(status_code=404, detail="Pair not found")
+
+    return await get_section_chat_context(
+        job_id=job_id,
+        pair_id=pair_id,
+        filename=pair.filename,
+        section_name=section_name,
+        page=page,
+    )
 
 
 @router.delete("/section-instructions/{section_name}")

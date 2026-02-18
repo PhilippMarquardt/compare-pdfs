@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { sendSectionChat, getSectionInstructions, saveSectionInstructions } from '../lib/api'
+import {
+  getSectionChatContext,
+  getSectionInstructions,
+  saveSectionInstructions,
+  sendSectionChat,
+} from '../lib/api'
 
 interface SectionChatModalProps {
   onClose: () => void
@@ -7,6 +12,11 @@ interface SectionChatModalProps {
   jobId: string
   pairId: string
   page: number
+}
+
+interface SectionChatContext {
+  reference_image_data_url: string | null
+  test_image_data_url: string | null
 }
 
 export function SectionChatModal({
@@ -21,10 +31,37 @@ export function SectionChatModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [contextData, setContextData] = useState<SectionChatContext | null>(null)
+  const [loadingContext, setLoadingContext] = useState(true)
+  const [contextError, setContextError] = useState<string | null>(null)
+
   const [instructionText, setInstructionText] = useState('')
   const [matchedName, setMatchedName] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loadingInstructions, setLoadingInstructions] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoadingContext(true)
+    setContextError(null)
+    getSectionChatContext(jobId, pairId, sectionName, page)
+      .then((result) => {
+        if (!cancelled) {
+          setContextData(result)
+          setLoadingContext(false)
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setContextData(null)
+          setContextError(e instanceof Error ? e.message : 'Failed to load section context')
+          setLoadingContext(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [jobId, pairId, sectionName, page])
 
   useEffect(() => {
     let cancelled = false
@@ -44,7 +81,9 @@ export function SectionChatModal({
           setLoadingInstructions(false)
         }
       })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [sectionName])
 
   const handleSend = useCallback(async () => {
@@ -87,8 +126,7 @@ export function SectionChatModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 h-[70vh] flex flex-col">
-        {/* Header */}
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-6xl mx-4 h-[78vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
           <h2 className="text-sm font-semibold text-gray-900">{sectionName}</h2>
           <button
@@ -101,11 +139,55 @@ export function SectionChatModal({
           </button>
         </div>
 
-        {/* Body */}
+        <div className="shrink-0 border-b border-gray-200 p-3">
+          {loadingContext ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="h-44 rounded-md border border-gray-200 bg-gray-50 animate-pulse" />
+              <div className="h-44 rounded-md border border-gray-200 bg-gray-50 animate-pulse" />
+            </div>
+          ) : contextError ? (
+            <p className="text-sm text-red-600">{contextError}</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-md border border-gray-200 p-2 min-w-0">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Old / Reference
+                </p>
+                <div className="h-36 bg-gray-50 border border-gray-100 rounded flex items-center justify-center overflow-hidden">
+                  {contextData?.reference_image_data_url ? (
+                    <img
+                      src={contextData.reference_image_data_url}
+                      alt="Reference section crop"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <p className="text-xs text-gray-400">No reference crop available</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-md border border-gray-200 p-2 min-w-0">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  New / Test
+                </p>
+                <div className="h-36 bg-gray-50 border border-gray-100 rounded flex items-center justify-center overflow-hidden">
+                  {contextData?.test_image_data_url ? (
+                    <img
+                      src={contextData.test_image_data_url}
+                      alt="Test section crop"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <p className="text-xs text-gray-400">No test crop available</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-1 min-h-0">
-          {/* Left: Chat */}
           <div className="flex-1 flex flex-col min-w-0">
-            {/* Response area */}
             <div className="flex-1 overflow-y-auto p-4">
               {loading && (
                 <div className="flex items-center gap-2 text-sm text-blue-600">
@@ -116,9 +198,7 @@ export function SectionChatModal({
                   Thinking...
                 </div>
               )}
-              {error && (
-                <p className="text-sm text-red-600">{error}</p>
-              )}
+              {error && <p className="text-sm text-red-600">{error}</p>}
               {response && !loading && (
                 <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
                   {response}
@@ -131,7 +211,6 @@ export function SectionChatModal({
               )}
             </div>
 
-            {/* Input bar */}
             <div className="flex gap-2 p-3 border-t border-gray-200 shrink-0">
               <input
                 type="text"
@@ -152,7 +231,6 @@ export function SectionChatModal({
             </div>
           </div>
 
-          {/* Right: Instructions */}
           <div className="w-72 flex flex-col border-l border-gray-200 p-4 shrink-0">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
               Section Instructions

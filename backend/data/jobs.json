@@ -1,5 +1,565 @@
 [
   {
+    "job_id": "a0cb0f0c2402",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "1140da5e8182",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/a0cb0f0c2402/files/reference/10.pdf",
+        "test_path": "/api/jobs/a0cb0f0c2402/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:59:30.310946",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "10b69f483536",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "f06d267a0d4f",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/10b69f483536/files/reference/10.pdf",
+        "test_path": "/api/jobs/10b69f483536/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:58:12.333148",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "9f58d83d3700",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "e3b79453bf2b",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/9f58d83d3700/files/reference/10.pdf",
+        "test_path": "/api/jobs/9f58d83d3700/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:52:08.063992",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "done",
+    "global_analysis_progress": 12,
+    "global_analysis_total": 12,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "c73352b07223",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "65b831dd4875",
+        "filename": "PRIIP_CH0019509196_CH_DE.pdf",
+        "reference_path": "/api/jobs/c73352b07223/files/reference/PRIIP_CH0019509196_CH_DE.pdf",
+        "test_path": "/api/jobs/c73352b07223/files/test/PRIIP_CH0019509196_CH_DE.pdf",
+        "status": "pending",
+        "page_count_reference": 3,
+        "page_count_test": 3
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:50:55.386577",
+    "analysis_status": "done",
+    "analysis_progress": 3,
+    "analysis_total": 3,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "4b6bb5cc002c",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "f79ffd29a646",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/4b6bb5cc002c/files/reference/10.pdf",
+        "test_path": "/api/jobs/4b6bb5cc002c/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:50:14.167961",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "624bb0abaab4",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "525d9bf46748",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/624bb0abaab4/files/reference/10.pdf",
+        "test_path": "/api/jobs/624bb0abaab4/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:48:45.538063",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "f673d2d750ab",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "6ac1ef49d71b",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/f673d2d750ab/files/reference/10.pdf",
+        "test_path": "/api/jobs/f673d2d750ab/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:47:53.418385",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "2c6d132e630d",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "2872cc788994",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/2c6d132e630d/files/reference/10.pdf",
+        "test_path": "/api/jobs/2c6d132e630d/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:46:42.868936",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "fad52df938d1",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "ca10f46b7993",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/fad52df938d1/files/reference/10.pdf",
+        "test_path": "/api/jobs/fad52df938d1/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:26:04.039576",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "a91152dfc2a2",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "2dd0140aeaf9",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/a91152dfc2a2/files/reference/10.pdf",
+        "test_path": "/api/jobs/a91152dfc2a2/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:24:07.591492",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "83257fe130b8",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "dced10030557",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/83257fe130b8/files/reference/10.pdf",
+        "test_path": "/api/jobs/83257fe130b8/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:23:39.923891",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "19138c787585",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "30478cb6237a",
+        "filename": "10.pdf",
+        "reference_path": "/api/jobs/19138c787585/files/reference/10.pdf",
+        "test_path": "/api/jobs/19138c787585/files/test/10.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:22:51.530189",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "72c6094dba20",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "017993528cc9",
+        "filename": "1.pdf",
+        "reference_path": "/api/jobs/72c6094dba20/files/reference/1.pdf",
+        "test_path": "/api/jobs/72c6094dba20/files/test/1.pdf",
+        "status": "pending",
+        "page_count_reference": 4,
+        "page_count_test": 4
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:16:18.167556",
+    "analysis_status": "done",
+    "analysis_progress": 4,
+    "analysis_total": 4,
+    "analysis_error": null,
+    "global_analysis_status": "done",
+    "global_analysis_progress": 4,
+    "global_analysis_total": 4,
+    "section_analysis_status": "done",
+    "section_analysis_progress": 4,
+    "section_analysis_total": 4
+  },
+  {
+    "job_id": "b07a3b69e2c8",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "4bccb5794960",
+        "filename": "1.pdf",
+        "reference_path": "/api/jobs/b07a3b69e2c8/files/reference/1.pdf",
+        "test_path": "/api/jobs/b07a3b69e2c8/files/test/1.pdf",
+        "status": "pending",
+        "page_count_reference": 4,
+        "page_count_test": 4
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T20:11:02.847011",
+    "analysis_status": "idle",
+    "analysis_progress": 0,
+    "analysis_total": 0,
+    "analysis_error": null,
+    "global_analysis_status": "done",
+    "global_analysis_progress": 4,
+    "global_analysis_total": 4,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "4ae548a485a8",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "825a55344147",
+        "filename": "5.pdf",
+        "reference_path": "/api/jobs/4ae548a485a8/files/reference/5.pdf",
+        "test_path": "/api/jobs/4ae548a485a8/files/test/5.pdf",
+        "status": "pending",
+        "page_count_reference": 12,
+        "page_count_test": 12
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T19:16:47.012930",
+    "analysis_status": "done",
+    "analysis_progress": 12,
+    "analysis_total": 12,
+    "analysis_error": null,
+    "global_analysis_status": "done",
+    "global_analysis_progress": 12,
+    "global_analysis_total": 12,
+    "section_analysis_status": "done",
+    "section_analysis_progress": 12,
+    "section_analysis_total": 12
+  },
+  {
+    "job_id": "91f1cd84663c",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "1a7a35ae9d4e",
+        "filename": "1.pdf",
+        "reference_path": "/api/jobs/91f1cd84663c/files/reference/1.pdf",
+        "test_path": "/api/jobs/91f1cd84663c/files/test/1.pdf",
+        "status": "pending",
+        "page_count_reference": 4,
+        "page_count_test": 4
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T19:07:49.152591",
+    "analysis_status": "done",
+    "analysis_progress": 4,
+    "analysis_total": 4,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "11cd29fc6600",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "8b9310cb65ba",
+        "filename": "1.pdf",
+        "reference_path": "/api/jobs/11cd29fc6600/files/reference/1.pdf",
+        "test_path": "/api/jobs/11cd29fc6600/files/test/1.pdf",
+        "status": "pending",
+        "page_count_reference": 4,
+        "page_count_test": 4
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T18:54:26.182489",
+    "analysis_status": "done",
+    "analysis_progress": 4,
+    "analysis_total": 4,
+    "analysis_error": null,
+    "global_analysis_status": "done",
+    "global_analysis_progress": 4,
+    "global_analysis_total": 4,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "4979355ed222",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "d7849947268c",
+        "filename": "FPPI_Monthly Report_P_EN.pdf.coredownload.pdf",
+        "reference_path": "/api/jobs/4979355ed222/files/reference/FPPI_Monthly Report_P_EN.pdf.coredownload.pdf",
+        "test_path": "/api/jobs/4979355ed222/files/test/FPPI_Monthly Report_P_EN.pdf.coredownload.pdf",
+        "status": "pending",
+        "page_count_reference": 11,
+        "page_count_test": 11
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T17:57:47.027332",
+    "analysis_status": "done",
+    "analysis_progress": 11,
+    "analysis_total": 11,
+    "analysis_error": null,
+    "global_analysis_status": "idle",
+    "global_analysis_progress": 0,
+    "global_analysis_total": 0,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "a68bd0f4ecf4",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "73f08c1fb6fe",
+        "filename": "1.pdf",
+        "reference_path": "/api/jobs/a68bd0f4ecf4/files/reference/1.pdf",
+        "test_path": "/api/jobs/a68bd0f4ecf4/files/test/1.pdf",
+        "status": "pending",
+        "page_count_reference": 4,
+        "page_count_test": 4
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T17:49:20.985467",
+    "analysis_status": "done",
+    "analysis_progress": 4,
+    "analysis_total": 4,
+    "analysis_error": null,
+    "global_analysis_status": "done",
+    "global_analysis_progress": 4,
+    "global_analysis_total": 4,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
+    "job_id": "019e1a090dc2",
+    "report_type": "none",
+    "pairs": [
+      {
+        "pair_id": "f246ba5cd3c7",
+        "filename": "1.pdf",
+        "reference_path": "/api/jobs/019e1a090dc2/files/reference/1.pdf",
+        "test_path": "/api/jobs/019e1a090dc2/files/test/1.pdf",
+        "status": "pending",
+        "page_count_reference": 4,
+        "page_count_test": 4
+      }
+    ],
+    "unmatched_reference": [],
+    "unmatched_test": [],
+    "created_at": "2026-02-17T17:47:43.909006",
+    "analysis_status": "done",
+    "analysis_progress": 4,
+    "analysis_total": 4,
+    "analysis_error": null,
+    "global_analysis_status": "done",
+    "global_analysis_progress": 4,
+    "global_analysis_total": 4,
+    "section_analysis_status": "idle",
+    "section_analysis_progress": 0,
+    "section_analysis_total": 0
+  },
+  {
     "job_id": "165f73101a4e",
     "report_type": "none",
     "pairs": [

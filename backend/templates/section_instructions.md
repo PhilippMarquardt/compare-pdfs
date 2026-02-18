@@ -1,14 +1,17 @@
 # Section Analysis Instructions
 
 ## Generic
-- Check visual appearance matches between reference and test
-- Nothing appears broken or cut off
-- No grammatical errors
+- Verify section layout and visual structure are consistent
+- Verify text is readable and not clipped or overlapping
+- Verify labels and headings are grammatically correct
 
 ## Specific
-
+- Verify key section content blocks are present in both versions
 
 ## Sections
 
-### Performanceübersicht in %
-Verify both of them have at least 3 months
+### Performanceuebersicht in %
+- Verify both versions show at least 3 monthly entries
+
+### Sustainability Policy
+- There is no category disabled in any
